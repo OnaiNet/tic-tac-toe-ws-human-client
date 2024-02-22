@@ -5,14 +5,35 @@ let gameId;
 let mark; // X or O
 let yourTurn = false;
 let backgroundColors = ['#FFC', '#CDF', '#FCF', '#DFD', ];
+let clientType;
+let players;
+
+const RANDOM_NAMES = [
+	'Luke Skywalker',
+	'Jean-Luc Picard',
+	'Malcolm Reynolds',
+	'Homer Simpson',
+	'Peter Griffin',
+	'Fred Flintstone',
+	'Ted Lasso',
+	'Walter White',
+	'Bandit Heeler',
+	'Calvin and Hobbes',
+	'A Cow from The Far Side',
+	'Garfield',
+	'Snoopy',
+	'You from the Future',
+	'Doc Brown',
+	'Marty McFly',
+	'Captain Jack Sparrow',
+];
+
+$(document).ready(() => {
+	bindCells();
+});
 
 function gameOver(msg) {
 	setStatus(msg);
-
-	// Unbind cell events since game is over!
-	$('.cell').each(function () {
-		$(this).unbind();
-	});
 }
 
 function setStatus(status) {
@@ -23,15 +44,17 @@ function setTournamentStatus(status) {
 	$('#tournament-status').html(status);
 }
 
-function joinTournament() {
+function join(role) {
+	clientType = role;
+	players = {};
 	let serverUrl = $('#server-url').val();
 	setTournamentStatus('Connecting to ' + serverUrl);
 	clearTimeout(closeTimeout);
 	$('#server-url').prop("disabled", true);
-	$('#connect-button').prop("disabled", true);
-	
+	$('button').prop("disabled", true);
+
 	socket = new WebSocket(serverUrl);
-	
+
 	socket.onopen = () => {
 		setTournamentStatus('Connected to ' + serverUrl);
 		setStatus('Waiting for game to start...');
@@ -41,8 +64,10 @@ function joinTournament() {
 
 		startGame(); // Reset game board
 
-		$('#connect-button').hide();
-		$('#disconnect-button').show();
+		$('#play-button').hide();
+		$('#observe-button').hide();
+		$('#player-name').show().prop('disabled', true);
+		$('#disconnect-button').show().prop('disabled', false);
 	};
 
 	socket.onmessage = (msg) => {
@@ -56,15 +81,18 @@ function joinTournament() {
 	};
 
 	socket.onclose = () => {
+		clientType = undefined;
 		console.log('Disconnected from ' + serverUrl);
 		setTournamentStatus('Disconnected from ' + serverUrl);
 		closeTimeout = setTimeout(() => {
 			setTournamentStatus('Not connected');
 		}, 3500);
-
 		$('#server-url').prop("disabled", false);
-		$('#connect-button').prop("disabled", false).show();
+		$('#player-name').prop("disabled", false);
+		$('#play-button').prop("disabled", false).show();
+		$('#observe-button').prop("disabled", false).show();
 		$('#disconnect-button').hide();
+		$('.scores').hide();
 	};
 }
 
@@ -100,7 +128,17 @@ function handleMessage(msg) {
 
 	switch (msg.type) {
 		case 'hello':
-			socket.send(JSON.stringify({ type: 'hello', clientType: 'player', name: 'Human' }));
+			const reply = { type: 'hello', clientType };
+
+			if (clientType === 'player') {
+				if (!$('#player-name').val().trim()) {
+					$('#player-name').val(pickRandomName());
+				}
+
+				reply.name = $('#player-name').val().trim();
+			}
+
+			socket.send(JSON.stringify(reply));
 			break;
 
 		case 'illegal':
@@ -109,50 +147,83 @@ function handleMessage(msg) {
 
 		case 'tournament-started':
 			setTournamentStatus('Tournament started! Waiting for game...');
+			$('.scores').hide();
 			break;
-		
+
 		case 'tournament-ended':
 			setTournamentStatus('Tournament ended!');
+			$('.cell').removeClass('selected').html('');
+			$('#winner').hide();
+			$('#game').css('background-color', 'transparent');
+
+			if (clientType === 'observer' && msg.rows) {
+				showScores(msg.rows);
+			}
+
+			break;
+
+		case 'player-count':
+			// do nothing
+			break;
+
+		case 'player-joined':
+			players[msg.id] = msg.name;
+			break;
+
+		case 'player-dropped':
+			delete players[msg.id];
 			break;
 
 		case 'tic-tac-toe:game-started':
-			gameId = msg.id;
-			setTournamentStatus(`Game ${gameId} started!`);
-			startGame();
-			waitingForTurnTimeout = setTimeout(() => {
-				setStatus('Waiting for turn...');
-			}, 1500);
+			if (clientType === 'player') {
+				gameId = msg.id;
+				setTournamentStatus(`Game ${gameId} started!`);
+				startGame();
+				waitingForTurnTimeout = setTimeout(() => {
+					setStatus('Waiting for turn...');
+				}, 1500);
+			}
+
 			break;
 
 		case 'tic-tac-toe:game-ended':
-			let result;
+			if (clientType === 'player') {
+				let result;
 
-			if (msg.winningMark === null) {
-				result = 'Stalemate!';
-			} else {
-				result = msg.winningMark + ' wins!';
-				drawWinner(msg.winningPattern);
+				if (msg.winningMark === null) {
+					result = 'Stalemate!';
+				} else {
+					result = msg.winningMark + ' wins!';
+					drawWinner(msg.winningPattern);
+				}
+
+				setStatus('Game ended: ' + result);
 			}
 
-			setStatus('Game ended: ' + result);
 			break;
 
 		case 'tic-tac-toe:your-turn':
-			clearTimeout(waitingForTurnTimeout);
-			mark = msg.mark;
-			yourTurn = true;
-			setStatus(`Your turn! You are ${mark}`);
-			$('#game').addClass('yourTurn');
+			if (clientType === 'player') {
+				clearTimeout(waitingForTurnTimeout);
+				mark = msg.mark;
+				yourTurn = true;
+				setStatus(`Your turn! You are ${mark}`);
+				$('#game').addClass('yourTurn');
+			}
+
 			break;
 
 		case 'tic-tac-toe:move-accepted':
-			console.log(`${msg.mark} to ${msg.cellIndex}`);
-			setStatus('Move accepted. Waiting for turn...');
-			recordMove(msg.cellIndex, msg.mark);
+			if (clientType === 'player') {
+				console.log(`${msg.mark} to ${msg.cellIndex}`);
+				setStatus('Move accepted. Waiting for turn...');
+				recordMove(msg.cellIndex, msg.mark);
+			}
+
 			break;
 
 		default:
-			console.log('Message type not undertood: ', msg.type, '\nReason: ', msg.reason);
+			console.log('Message type not understood: ', msg.type, '\nReason: ', msg.reason);
 			setTournamentStatus('Received unknown message type: ' + msg.type);
 			break;
 	}
@@ -160,17 +231,22 @@ function handleMessage(msg) {
 
 function startGame() {
 	yourTurn = false;
-
-	bindCells();
 	$('#game').css('background-color', backgroundColors[(gameId % backgroundColors.length)]);
 	$('#winner').hide();
+	$('.cell').removeClass('selected').html('');
 }
 
 function bindCells() {
 	$('.cell')
-		.removeClass('selected')
-		.html('')
 		.click(function () {
+			if (clientType !== 'player') {
+				return; // only players can make moves
+			}
+
+			if ($(this).hasClass('selected')) {
+				return; // don't allow re-selecting a cell
+			}
+
 			console.log('CLICK! cell # = ' + $(this).index() + ', ' + (yourTurn ? '' : 'NOT') + ' your turn! ' + (yourTurn ? 'YAY!' : 'BOO!') + ', Mark is ' + mark);
 
 			if (!yourTurn) return;
@@ -182,8 +258,7 @@ function bindCells() {
 function recordMove(cellIndex, mark) {
 	$('.cell:nth-child(' + (cellIndex + 1) + ')')
 		.html(mark)
-		.addClass('selected')
-		.unbind();
+		.addClass('selected');
 }
 
 function drawWinner(pattern) {
@@ -194,8 +269,6 @@ function drawWinner(pattern) {
 	canvas.height = 300;
 	context.clearRect(0, 0, canvas.width, canvas.height);
 	context.beginPath();
-
-	let bitsFound = 0;
 	let coordinates = [];
 
 	for (let bit = 0; bit < 9; bit++) {
@@ -218,4 +291,19 @@ function drawWinner(pattern) {
 	context.lineWidth = 6;
 	context.lineCap = 'round';
 	context.stroke();
+}
+
+function showScores(scores) {
+	const tbody = $('.scores tbody');
+	tbody.html(
+		scores.map(({ id, score }) => {
+			const name = players[id] ?? id;
+			return `<tr><td>${name}</td><td>${score}</td></tr>`;
+		}).join('')
+	);
+	$('.scores').show();
+}
+
+function pickRandomName() {
+	return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
 }

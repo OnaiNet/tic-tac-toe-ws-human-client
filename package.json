@@ -1,0 +1,23 @@
+{
+  "name": "tic-tac-toe-ws-human-client",
+  "version": "1.0.0",
+  "description": "Quick and dirty Tic Tac Toe game",
+  "main": "slykbotv1.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OnaiNet/tic-tac-toe-ws-human-client.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/OnaiNet/tic-tac-toe-ws-human-client/issues"
+  },
+  "homepage": "https://github.com/OnaiNet/tic-tac-toe-ws-human-client#readme",
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

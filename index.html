@@ -36,6 +36,14 @@
 			box-shadow: 0 0 10px 10px yellow;
 		}
 
+		#game.yourTurn > .cell:not(.selected):hover {
+			cursor: pointer;
+		 }
+
+		#game.yourTurn > .cell.selected:hover {
+			cursor: not-allowed;
+		 }
+
 		#winner {
 			position: absolute;
 			width: 100%;

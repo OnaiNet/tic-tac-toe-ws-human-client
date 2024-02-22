@@ -4,7 +4,7 @@ let waitingForTurnTimeout;
 let gameId;
 let mark; // X or O
 let yourTurn = false;
-let backgroundColors = ['#FFC', '#CFF'];
+let backgroundColors = ['#FFC', '#CDF', '#FCF', '#DFD', ];
 
 function gameOver(msg) {
 	setStatus(msg);

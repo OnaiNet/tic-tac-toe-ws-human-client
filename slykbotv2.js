@@ -68,13 +68,14 @@ function makeYourMove(cellIndex) {
 
 	for (let i = 0; i < cells.length; i++) {
 		if (cells[i] !== null) continue;
+		let cellPower = Math.pow(2, i);
 
 		for (let x = 0; x < winPatterns.length; x++) {
 			let goal = winPatterns[x];
-			if (mySum & i & goal === goal) {
+			if (mySum & cellPower & goal === goal) {
 				sendMove(i);
 				setStatus('Waiting for turn...');
-			} else if (theirSum & i & goal === goal) {
+			} else if (theirSum & cellPower & goal === goal) {
 				sendMove(i);
 				setStatus('Waiting for turn...');				
 			}
